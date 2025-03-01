@@ -1,0 +1,44 @@
+import torch
+import whisper
+import pyaudio
+import wave
+import numpy as np
+import tempfile
+
+def real_time_transcription():
+    model = whisper.load_model("base")
+    p = pyaudio.PyAudio()
+    
+    stream = p.open(format=pyaudio.paInt16,
+                    channels=1,
+                    rate=16000,
+                    input=True,
+                    frames_per_buffer=1024)
+    
+    print("Listening...")
+    
+    try:
+        while True:
+            frames = []
+            for _ in range(50):  # Collect approximately 1 second of audio
+                audio_data = stream.read(1024, exception_on_overflow=False)
+                frames.append(audio_data)
+            
+            with tempfile.NamedTemporaryFile(suffix=".wav", delete=True) as tmpfile:
+                wf = wave.open(tmpfile.name, 'wb')
+                wf.setnchannels(1)
+                wf.setsampwidth(p.get_sample_size(pyaudio.paInt16))
+                wf.setframerate(16000)
+                wf.writeframes(b''.join(frames))
+                wf.close()
+                
+                result = model.transcribe(tmpfile.name)
+                print("You said:", result["text"].strip())
+    except KeyboardInterrupt:
+        print("Stopping transcription...")
+        stream.stop_stream()
+        stream.close()
+        p.terminate()
+
+if _name_ == "_main_":
+    real_time_transcription()
